@@ -1,0 +1,16 @@
+# Cisco 7970G <-> Home Assistant via FreeSWITCH on the Mac Mini (repo cisco-claude-deskphone).
+# HA is SIP extension 200 (hass-sip 1.10.2). Stage 1: answer every call, say a line, hang up.
+- id: sip_phone_answer_greeting
+  alias: "SIP 话机: 来电自动接听并播报"
+  mode: single
+  trigger:
+    - platform: event
+      event_type: sip_incoming_call
+  action:
+    - service: sip.answer
+      target:
+        entity_id: media_player.sip_extension_200_phone_line
+      data:
+        message: "你好，这里是家里的 Home Assistant，电话已经接通。"
+        tts_engine: tts.google_translate_en_com
+        language: zh-CN

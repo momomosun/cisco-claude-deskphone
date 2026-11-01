@@ -1,0 +1,9 @@
+<DIALTEMPLATE>
+  <!-- Send immediately when the number is complete instead of waiting for the inter-digit timeout -->
+  <TEMPLATE MATCH="1.." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="2.." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="3.." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="6.." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="*.." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="*" Timeout="3" User="Phone"/>
+</DIALTEMPLATE>

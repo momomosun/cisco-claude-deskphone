@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.voice-agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/cisco-phone/.venv-voice/bin/python</string>
+    <string>/Users/you/cisco-phone/voice_agent.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/you/cisco-phone</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/you/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <!-- someone is waiting on the line: no background throttling (see com.example.freeswitch.plist) -->
+  <key>ProcessType</key><string>Interactive</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/cisco-phone/voice_agent.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/cisco-phone/voice_agent.log</string>
+</dict>
+</plist>

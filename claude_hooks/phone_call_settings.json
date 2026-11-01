@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "NotebookEdit"
+    ],
+    "deny": [
+      "Read(~/cisco-phone/secrets.env)",
+      "Read(~/cisco-phone/claude.token)",
+      "Read(~/.claude/phone-hub.token)",
+      "Read(~/.claude/.credentials.json)"
+    ]
+  },
+  "sandbox": {
+    "autoAllowBashIfSandboxed": false
+  },
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": false
+  },
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PHONE_HUB_URL=http://127.0.0.1:8090 PHONE_HUB_CALL=1 /usr/bin/python3 /Users/you/cisco-phone/claude_hooks/phone_hook.py",
+            "timeout": 70
+          }
+        ]
+      }
+    ]
+  }
+}

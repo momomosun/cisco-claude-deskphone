@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- On the Mac Studio, next to the Claude desktop app (see desk_relay.py). Runs DeskRelay.app
+       (built by desk_relay_app.sh), which needs Accessibility and Automation of System Events in
+       Privacy & Security; desk_relay.py appends its own lines to the log. -->
+  <key>Label</key><string>com.example.desk-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/Applications/DeskRelay.app/Contents/MacOS/applet</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/you/cisco-phone</string>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/cisco-phone/desk_relay.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/cisco-phone/desk_relay.log</string>
+</dict>
+</plist>

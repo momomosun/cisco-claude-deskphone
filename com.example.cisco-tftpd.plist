@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.cisco-tftpd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/you/cisco-phone/tftpd.py</string>
+    <string>/Users/you/cisco-phone/tftpboot</string>
+    <string>69</string>
+  </array>
+  <!-- The phone config carries the SIP password: serve only the phone (DHCP-pinned on the router) -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TFTP_ALLOWED_NET</key><string>192.168.1.101/32,192.168.1.102/32</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/cisco-phone/tftpd.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/cisco-phone/tftpd.log</string>
+</dict>
+</plist>

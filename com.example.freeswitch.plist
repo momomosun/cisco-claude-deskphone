@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.freeswitch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/freeswitch</string>
+    <string>-nf</string>
+    <string>-nc</string>
+    <string>-nonat</string>
+    <string>-conf</string><string>/Users/you/cisco-phone/build/freeswitch</string>
+    <string>-log</string><string>/Users/you/cisco-phone/fs/log</string>
+    <string>-db</string><string>/Users/you/cisco-phone/fs/db</string>
+    <string>-run</string><string>/Users/you/cisco-phone/fs/run</string>
+    <string>-cache</string><string>/Users/you/cisco-phone/fs/cache</string>
+    <string>-storage</string><string>/Users/you/cisco-phone/fs/storage</string>
+    <string>-recordings</string><string>/Users/you/cisco-phone/fs/recordings</string>
+  </array>
+  <!-- Interactive: without it macOS coalesces this job's timers like a background task (a 1 ms
+       sleep took ~5 ms), FreeSWITCH's soft timer ran 2.4x slow and every sound it plays dragged. -->
+  <key>ProcessType</key><string>Interactive</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/cisco-phone/fs/stdout.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/cisco-phone/fs/stdout.log</string>
+</dict>
+</plist>

@@ -1,0 +1,109 @@
+"""A desktop session that finishes its turn comes up on the phone; GO brings it to the front on the Studio."""
+import time
+
+import pytest
+
+import phone_hub
+from test_phone_hub import get, hub_server, picture, post, softkey_urls, wait_for_push  # noqa: F401
+from test_phone_hub_desk import desk_hub  # noqa: F401
+
+STOP = {"hook_event_name": "Stop", "session_id": "s-app", "cwd": "/Users/x/parkabout",
+        "title": "parkabout app", "last_assistant_message": "测试全过了，已经推送。"}
+
+
+@pytest.fixture
+def done_hub(desk_hub, monkeypatch):
+    hub, desk, relay, base, push = desk_hub
+    monkeypatch.setattr(phone_hub, "RING_DELAY", 0)
+    relay.focused, relay.focus_answer = [], {"ok": True, "error": ""}
+    plain = relay.__call__
+
+    def call(url, key, path, payload, timeout=5):
+        if path == "/focus":
+            relay.focused.append(payload)
+            return relay.focus_answer
+        return plain(url, key, path, payload, timeout)
+
+    desk.post = call
+    rings = []
+    hub.ring = lambda: rings.append(time.time()) or True
+    yield hub, relay, base, push, rings
+
+
+def test_a_finished_session_comes_up_with_go(done_hub):
+    hub, relay, base, push, rings = done_hub
+    assert post(base, "/hook/event", STOP)[0] == 200
+    url = wait_for_push(push)
+    _, _, page = get(url)
+    keys = softkey_urls(page)
+    assert list(keys) == ["GO", "OK"]
+    get(picture(page))
+    time.sleep(0.1)
+    assert len(rings) == 1  # away (the default mode): it rings once
+    assert b"/phone/msg/" in get(f"{base}/phone/panel")[2]  # the idle panel would cover it: it holds the panel
+    assert b"panel.png" in get(keys["GO"])[2]  # GO: opened on the computer, back to the panel
+    assert relay.focused == [{"session_id": "s-app"}]
+    assert b"panel.png" in get(f"{base}/phone/panel")[2]  # seen: the panel is the panel again
+
+
+def test_at_the_desk_it_comes_up_without_ringing(done_hub):
+    hub, _, base, push, rings = done_hub
+    hub.set_mode("desk")
+    post(base, "/hook/event", STOP)
+    _, _, page = get(wait_for_push(push))
+    get(picture(page))
+    time.sleep(0.1)
+    assert rings == []
+
+
+@pytest.mark.parametrize("extra", [{"on_screen": True}, {"phone_call": True}])
+def test_a_session_on_screen_or_in_a_call_stays_quiet(done_hub, extra):
+    hub, _, base, push, _ = done_hub
+    post(base, "/hook/event", {**STOP, **extra})
+    time.sleep(0.1)
+    assert push.urls == [] and hub.messages == []
+
+
+def test_a_waiting_approval_is_not_covered(done_hub):
+    hub, _, base, push, _ = done_hub
+    with hub.lock:
+        hub.pending["x"] = phone_hub.Request("s1", "Bash", "ls")
+    post(base, "/hook/event", STOP)
+    time.sleep(0.1)
+    assert push.urls == [] and len(hub.messages) == 1  # it waits; the panel shows it once the approval is done
+
+
+def test_the_same_session_finishing_again_replaces_its_notice(done_hub):
+    hub, _, base, push, _ = done_hub
+    post(base, "/hook/event", STOP)
+    post(base, "/hook/event", dict(STOP, last_assistant_message="第二轮也完了"))
+    wait_for_push(push, 2)
+    assert [m["text"] for m in hub.messages] == ["第二轮也完了"]
+
+
+def test_go_that_fails_says_why(done_hub):
+    hub, relay, base, push, _ = done_hub
+    relay.focus_answer = {"ok": False, "error": "locked"}
+    post(base, "/hook/event", STOP)
+    _, _, page = get(wait_for_push(push))
+    msg_id = hub.messages[0]["id"]
+    answer = get(softkey_urls(page)["GO"])[2]
+    assert list(softkey_urls(answer)) == ["GO", "OK"]  # the notice again: GO may be tried once unlocked
+    assert hub.messages[0]["note"] == "电脑锁屏了，没打开" and not hub.messages[0]["acked"]
+    assert get(picture(answer))[0] == 200
+    assert f"/phone/msg/{msg_id}".encode() in get(f"{base}/phone/panel")[2]
+
+
+def test_markdown_marks_are_left_out(done_hub):
+    hub, _, base, push, _ = done_hub
+    post(base, "/hook/event", dict(STOP, last_assistant_message="**修了什么：** `render.py`"))
+    wait_for_push(push)
+    assert hub.messages[0]["text"] == "修了什么： render.py"
+
+
+def test_without_the_desk_relay_nothing_comes_up(hub_server):
+    hub, push, base, *_ = hub_server
+    post(base, "/hook/event", STOP)
+    time.sleep(0.1)
+    assert push.urls == [] and hub.messages == []
+

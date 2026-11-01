@@ -1,0 +1,243 @@
+<?xml version="1.0"?>
+<!-- Home PBX: FreeSWITCH running natively on the Mac Mini (192.168.1.10).
+     Minimal single-file config. Rendered by render.py; placeholder values come from secrets.env. -->
+<document type="freeswitch/xml">
+  <X-PRE-PROCESS cmd="set" data="pbx_ip=192.168.1.10"/>
+
+  <section name="configuration">
+    <configuration name="switch.conf">
+      <settings>
+        <param name="colorize-console" value="false"/>
+        <param name="loglevel" value="info"/>
+        <param name="max-sessions" value="20"/>
+        <param name="sessions-per-second" value="10"/>
+        <param name="rtp-start-port" value="16384"/>
+        <param name="rtp-end-port" value="16484"/>
+      </settings>
+    </configuration>
+
+    <configuration name="modules.conf">
+      <modules>
+        <load module="mod_console"/>
+        <load module="mod_logfile"/>
+        <load module="mod_commands"/>
+        <load module="mod_dptools"/>
+        <load module="mod_dialplan_xml"/>
+        <load module="mod_sofia"/>
+        <load module="mod_sndfile"/>
+        <load module="mod_native_file"/>
+        <load module="mod_tone_stream"/>
+        <load module="mod_event_socket"/>
+      </modules>
+    </configuration>
+
+    <!-- fs_cli access, localhost only -->
+    <configuration name="event_socket.conf">
+      <settings>
+        <param name="listen-ip" value="127.0.0.1"/>
+        <param name="listen-port" value="8022"/>
+        <param name="password" value="{{ESL_PASSWORD}}"/>
+      </settings>
+    </configuration>
+
+    <configuration name="console.conf">
+      <mappings>
+        <map name="all" value="console,debug,info,notice,warning,err,crit,alert"/>
+      </mappings>
+      <settings>
+        <param name="colorize" value="false"/>
+        <param name="loglevel" value="info"/>
+      </settings>
+    </configuration>
+
+    <configuration name="logfile.conf">
+      <settings>
+        <param name="rotate-on-hup" value="true"/>
+      </settings>
+      <profiles>
+        <profile name="default">
+          <settings>
+            <param name="rollover" value="10485760"/>
+            <param name="maximum-rotate" value="5"/>
+          </settings>
+          <mappings>
+            <map name="all" value="info,notice,warning,err,crit,alert"/>
+          </mappings>
+        </profile>
+      </profiles>
+    </configuration>
+
+    <configuration name="sofia.conf">
+      <global_settings>
+        <param name="log-level" value="0"/>
+      </global_settings>
+      <profiles>
+        <profile name="internal">
+          <domains>
+            <domain name="all" alias="false" parse="false"/>
+          </domains>
+          <settings>
+            <param name="sip-ip" value="$${pbx_ip}"/>
+            <!-- the Mini's address is fixed: a blip to another address (10-29 11:52, .10 -> .112)
+                 must not restart the profile, which then failed to bind and left SIP down -->
+            <param name="auto-restart" value="false"/>
+            <param name="rtp-ip" value="$${pbx_ip}"/>
+            <param name="sip-port" value="5060"/>
+            <param name="context" value="default"/>
+            <param name="dialplan" value="XML"/>
+            <param name="auth-calls" value="true"/>
+            <param name="force-register-domain" value="$${pbx_ip}"/>
+            <param name="force-register-db-domain" value="$${pbx_ip}"/>
+            <param name="force-subscription-domain" value="$${pbx_ip}"/>
+            <param name="challenge-realm" value="auto_to"/>
+            <param name="inbound-codec-prefs" value="PCMU,PCMA"/>
+            <param name="outbound-codec-prefs" value="PCMU,PCMA"/>
+            <param name="dtmf-type" value="rfc2833"/>
+            <param name="rfc2833-pt" value="101"/>
+            <param name="manage-presence" value="false"/>
+            <param name="accept-blind-reg" value="false"/>
+            <param name="accept-blind-auth" value="false"/>
+            <param name="nonce-ttl" value="60"/>
+          </settings>
+        </profile>
+
+        <!-- Home Assistant (hass-sip) runs inside Docker Desktop on the Air, so its SIP and RTP
+             arrive NATed from 192.168.1.40 with a container address in Contact/SDP. NAT handling
+             lives on this separate port so the Cisco phone's profile above stays untouched. -->
+        <profile name="ha">
+          <domains>
+            <domain name="all" alias="false" parse="false"/>
+          </domains>
+          <settings>
+            <param name="sip-ip" value="$${pbx_ip}"/>
+            <!-- the Mini's address is fixed: a blip to another address (10-29 11:52, .10 -> .112)
+                 must not restart the profile, which then failed to bind and left SIP down -->
+            <param name="auto-restart" value="false"/>
+            <param name="rtp-ip" value="$${pbx_ip}"/>
+            <param name="sip-port" value="5070"/>
+            <param name="context" value="default"/>
+            <param name="dialplan" value="XML"/>
+            <param name="auth-calls" value="true"/>
+            <param name="force-register-domain" value="$${pbx_ip}"/>
+            <param name="force-register-db-domain" value="$${pbx_ip}"/>
+            <param name="force-subscription-domain" value="$${pbx_ip}"/>
+            <param name="challenge-realm" value="auto_to"/>
+            <param name="inbound-codec-prefs" value="PCMU,PCMA"/>
+            <param name="outbound-codec-prefs" value="PCMU,PCMA"/>
+            <param name="dtmf-type" value="rfc2833"/>
+            <param name="rfc2833-pt" value="101"/>
+            <param name="manage-presence" value="false"/>
+            <param name="accept-blind-reg" value="false"/>
+            <param name="accept-blind-auth" value="false"/>
+            <param name="nonce-ttl" value="60"/>
+            <!-- NAT: answer to the real source address/port, store the NATed contact,
+                 keep the Docker NAT mapping alive, and latch RTP onto where media really comes from -->
+            <param name="NDLB-force-rport" value="true"/>
+            <param name="aggressive-nat-detection" value="true"/>
+            <param name="NDLB-received-in-nat-reg-contact" value="true"/>
+            <param name="nat-options-ping" value="true"/>
+            <param name="ping-mean-interval" value="20"/>
+            <!-- sofia drops NAT mode for sources inside local-network-acl (localnet.auto by default),
+                 and the Air 192.168.1.40 is on the LAN, so it would INVITE the container address
+                 172.17.x. Treat only loopback as local on this profile. -->
+            <param name="local-network-acl" value="loopback_only"/>
+          </settings>
+        </profile>
+      </profiles>
+    </configuration>
+
+    <!-- Note: sofia's apply-register-acl / apply-inbound-acl mean "IPs in this list skip
+         authentication", not "only these IPs may connect". Never set them here: every phone must
+         authenticate with its password. The PBX is LAN-only (no port forwarding). -->
+    <configuration name="acl.conf">
+      <network-lists>
+        <list name="loopback_only" default="deny">
+          <node type="allow" cidr="127.0.0.0/8"/>
+        </list>
+      </network-lists>
+    </configuration>
+  </section>
+
+  <section name="dialplan">
+    <context name="default">
+      <!-- *43: echo test - you hear yourself back (checks both audio directions) -->
+      <extension name="echo">
+        <condition field="destination_number" expression="^\*43$">
+          <action application="answer"/>
+          <action application="sleep" data="1000"/>
+          <action application="echo"/>
+        </condition>
+      </extension>
+      <!-- 1xx: ring another phone on this PBX; 200: Home Assistant -->
+      <extension name="local_extension">
+        <condition field="destination_number" expression="^(1\d\d|200)$">
+          <action application="set" data="call_timeout=30"/>
+          <action application="set" data="hangup_after_bridge=true"/>
+          <!-- {..} applies to the B-leg, where sofia decides whether to follow a 3xx redirect -->
+          <action application="bridge" data="{outbound_redirect_fatal=true}user/$1@$${pbx_ip}"/>
+        </condition>
+      </extension>
+      <!-- 300: talk to Claude Code; voice_agent.py drives the call over the outbound event socket.
+           Only for callers whose directory entry sets claude_caller (the 7970): whoever calls can
+           approve Claude's commands with the keypad. -->
+      <extension name="claude">
+        <condition field="destination_number" expression="^300$"/>
+        <condition field="${claude_caller}" expression="^true$">
+          <action application="socket" data="127.0.0.1:8085 async full"/>
+        </condition>
+      </extension>
+    </context>
+  </section>
+
+  <section name="directory">
+    <domain name="$${pbx_ip}">
+      <params>
+        <param name="dial-string" value="{presence_id=${dialed_user}@${dialed_domain}}${sofia_contact(${dialed_user}@${dialed_domain})}"/>
+      </params>
+      <variables>
+        <variable name="user_context" value="default"/>
+      </variables>
+      <groups>
+        <group name="default">
+          <users>
+            <!-- 101: Cisco 7970G -->
+            <user id="101">
+              <params>
+                <param name="password" value="{{PHONE_101_PASSWORD}}"/>
+                <param name="allow-empty-password" value="false"/>
+              </params>
+              <variables>
+                <variable name="effective_caller_id_name" value="7970G"/>
+                <variable name="effective_caller_id_number" value="101"/>
+                <!-- may dial 300 (Claude); set from this entry once the caller has authenticated -->
+                <variable name="claude_caller" value="true"/>
+              </variables>
+            </user>
+            <!-- 200: Home Assistant (hass-sip on the Air), registers on the "ha" profile, port 5070 -->
+            <user id="200">
+              <params>
+                <param name="password" value="{{PHONE_200_PASSWORD}}"/>
+                <param name="allow-empty-password" value="false"/>
+              </params>
+              <variables>
+                <variable name="effective_caller_id_name" value="Home Assistant"/>
+                <variable name="effective_caller_id_number" value="200"/>
+              </variables>
+            </user>
+            <!-- 102: Sam's Cisco 7970 (no claude_caller: cannot dial 300) -->
+            <user id="102">
+              <params>
+                <param name="password" value="{{PHONE_102_PASSWORD}}"/>
+                <param name="allow-empty-password" value="false"/>
+              </params>
+              <variables>
+                <variable name="effective_caller_id_name" value="Sam"/>
+                <variable name="effective_caller_id_number" value="102"/>
+              </variables>
+            </user>
+          </users>
+        </group>
+      </groups>
+    </domain>
+  </section>
+</document>
