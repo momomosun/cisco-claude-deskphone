@@ -83,7 +83,8 @@ Home provisioning for a Cisco CP-7970G (and later 7962G) on SIP, to pair with Ho
   or press its number (several allowed: toggle them, then Done). The answers go back through the hook, signed by
   the hub over the answers, as the tool's `updatedInput` = the questions as asked plus `answers` (question text
   -> label, or labels): it replaces the whole input, so `answers` alone fails Claude Code's schema check. Only
-  1-4 plain choice questions of 2-4 options; text/number questions, calls and anything cut short stay on the
+  1-4 plain choice questions of 2-4 options; with the desk relay a **GO** softkey opens the asking session on
+  the Studio (as for a finished session) and leaves the question up, its footer saying what GO did; text/number questions, calls and anything cut short stay on the
   computer, and Allow/Deny never answer a question.
 - While an approval waits on the phone it rings: `Play:ClaudeRing.raw` (fetched from the Mini's TFTP;
   `make_ring.py` writes it in Cisco's ring format) one second after each load of the approval page, i.e. the push

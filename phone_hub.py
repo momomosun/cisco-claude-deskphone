@@ -186,6 +186,7 @@ class Request:
         self.questions = questions  # AskUserQuestion: asked one at a time, answers kept here
         self.answers, self.step, self.chosen = {}, 0, set()
         self.back = None  # where the phone goes once it is answered (Hub.go_back_soon)
+        self.note = ""  # what GO did, in the question's footer
 
 
 class NonceCache:
@@ -1130,10 +1131,23 @@ def make_handler(hub, hook_key, push_auth, shot=None):
 
         def _question_page(self, req, route, token):
             """An AskUserQuestion, one question at a time: touch an option or press its number;
-            where several may be chosen, toggle them and press Done."""
-            if len(route) == 3 and route[1] == "pick" and route[2].isdigit():
+            where several may be chosen, toggle them and press Done. GO opens the session on the
+            computer (as for a finished session) and leaves the question up."""
+            if len(route) == 2 and route[1] == "go" and hub.desk:
+                try:
+                    result = hub.desk.focus(req.session)
+                except Exception as exc:
+                    log(f"desk focus: {exc}")
+                    result = {"ok": False, "error": "电脑没回应"}
+                error = str(result.get("error") or "")
+                req.note = ("已在电脑上打开" if result.get("ok")
+                            else GO_ERRORS.get(error, f"没打开：{error[:40]}"))
+                route = [req.id]
+            elif len(route) == 3 and route[1] == "pick" and route[2].isdigit():
+                req.note = ""  # answering here: the footer says how again
                 req = hub.choose(req.id, token, int(route[2])) or req
             elif len(route) == 2 and route[1] == "done":
+                req.note = ""
                 req = hub.choose(req.id, token) or req
             if req.decision == "allow":
                 if len(route) > 1:  # this load answered it
@@ -1145,7 +1159,7 @@ def make_handler(hub, hook_key, push_auth, shot=None):
                 with hub.lock:
                     project = hub.sessions.get(req.session, {}).get("project", "?")
                 footer = (f"第 {req.step + 1}/{len(req.questions)} 题 · "
-                          + ("可多选，选好按 Done" if q["several"] else "点选项或按数字"))
+                          + (req.note or ("可多选，选好按 Done" if q["several"] else "点选项或按数字")))
                 hub.ring_soon(req)
                 return self._send(200, phone_render.render_lines(f"需要选择 | {project}", lines, 0, footer, arrows=True),
                                   "image/png")
@@ -1155,6 +1169,8 @@ def make_handler(hub, hook_key, push_auth, shot=None):
                      for i, top in ((i, phone_render.BODY_TOP + (first + i) * phone_render.LINE_H - 1)
                                     for i in range(len(q["options"])))]
             keys = [(str(i + 1), f"{base}/pick/{i}{tq}") for i in range(len(q["options"]))]
+            if hub.desk:
+                keys.append(("GO", f"{base}/go{tq}"))
             keys.append(("Done", f"{base}/done{tq}") if q["several"] else ("Exit", "SoftKey:Exit"))
             hub.screen = ("req", req.id, token)  # as for an approval
             return self._send(200, touch_page("Claude Code: choose", f"{base}.png{tq}&n={time.time():.0f}",

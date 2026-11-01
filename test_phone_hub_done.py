@@ -115,3 +115,45 @@ def test_a_session_talking_on_the_phone_stays_quiet(done_hub):
     post(base, "/hook/event", STOP)
     time.sleep(0.1)
     assert push.urls == [] and hub.messages == [] and rings == []
+
+
+# --- GO on a question: open its session on the computer, the question stays on the phone ----------
+from test_phone_hub import ask_question, touch_urls  # noqa: E402
+
+
+@pytest.mark.parametrize("answer, note", [({"ok": True, "error": ""}, "已在电脑上打开"),
+                                          ({"ok": False, "error": "locked"}, "电脑锁屏了，没打开")])
+def test_go_on_a_question_opens_its_session_and_leaves_the_question_up(done_hub, answer, note):
+    hub, relay, base, push, _ = done_hub
+    relay.focus_answer = answer
+    t, result, _ = ask_question(base)
+    page = get(wait_for_push(push))[2]
+    assert list(softkey_urls(page)) == ["1", "2", "GO", "Exit"]
+    page = get(softkey_urls(page)["GO"])[2]
+    assert relay.focused == [{"session_id": "s1"}]
+    assert list(softkey_urls(page)) == ["1", "2", "GO", "Exit"] and len(touch_urls(page)) == 2
+    req = next(iter(hub.pending.values()))
+    assert req.note == note and req.decision is None
+    assert get(picture(page))[0] == 200
+    get(touch_urls(page)[0])  # still answerable on the phone
+    assert req.step == 1 and req.note == ""  # answering puts the usual footer back
+    with hub.lock:
+        req.closed = True
+    req.done.set()
+    t.join(5)
+
+
+def test_done_after_go_puts_the_usual_footer_back_on_the_next_question(done_hub):
+    hub, relay, base, push, _ = done_hub
+    several = {"question": "要哪些？", "header": "多", "multiSelect": True, "options": [{"label": "A"}, {"label": "B"}]}
+    t, result, _ = ask_question(base, tool_input={"questions": [several, dict(several, question="还要哪些？")]})
+    keys = softkey_urls(get(wait_for_push(push))[2])
+    get(keys["1"])
+    keys = softkey_urls(get(keys["GO"])[2])
+    get(keys["Done"])
+    req = next(iter(hub.pending.values()))
+    assert req.step == 1 and req.note == ""
+    with hub.lock:
+        req.closed = True
+    req.done.set()
+    t.join(5)
