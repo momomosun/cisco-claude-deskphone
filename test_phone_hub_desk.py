@@ -62,7 +62,7 @@ def test_the_list_shows_desktop_sessions_and_the_cursor_moves(desk_hub):
     assert list(keys) == ["Open", "Down", "Up", "Exit"]
     assert get(image_url(page))[2].startswith(b"\x89PNG")
     get(keys["Down"])
-    assert desk.cursor == 1 and desk.at_cursor()["title"] == "parkabout app"
+    assert desk.cursor == 1 and desk.at_cursor()["title"] == "demo app"
     get(keys["Up"])
     assert desk.cursor == 0
     assert b"Desk sessions" in get(base + "/phone/menu")[2]

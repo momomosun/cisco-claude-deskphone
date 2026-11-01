@@ -21,6 +21,7 @@ ATTACH_TTL = 900
 RELAY_TIMEOUT = 8
 TARGET_TIMEOUT = 3  # each read of the relay's answer; voice_agent waits 5 s for the target
 TARGET_DEADLINE = 4  # the whole lookup: a target found later is not held, the call has moved on
+FOCUS_TIMEOUT = 15  # the relay may wait 2 s behind a send, then give the link 10 s
 SEND_TIMEOUT = 60  # opening the session and finding its prompt box takes a few seconds
 
 
@@ -66,7 +67,7 @@ class DeskGateway:
 
     def focus(self, session_id):
         """Bring the desktop session running this transcript to the front: {"ok", "error"}."""
-        return self._call("/focus", {"session_id": session_id})
+        return self._call("/focus", {"session_id": session_id}, timeout=FOCUS_TIMEOUT)
 
     def attach(self, session_id):
         with self.lock:

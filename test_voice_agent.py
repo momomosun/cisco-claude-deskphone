@@ -248,10 +248,10 @@ def test_a_call_talks_to_the_desk_session_and_reads_its_final_answer():
 
 
 def test_a_session_picked_on_the_phone_is_named_first():
-    hub = FakeHub(target=dict(DESK, title="parkabout app"),
+    hub = FakeHub(target=dict(DESK, title="demo app"),
                   replies=[{"landed": True, "texts": ["好。"], "ended": True, "status": "idle"}])
     _, said, _ = converse(["跑一下测试", "再见"], [], hub=hub)
-    assert said[:3] == [va.GREETING, "现在连的是 parkabout app。", "好。"]
+    assert said[:3] == [va.GREETING, "现在连的是 demo app。", "好。"]
 
 
 @pytest.mark.parametrize("error, words", [

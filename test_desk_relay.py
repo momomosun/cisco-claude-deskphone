@@ -333,3 +333,14 @@ def test_focus_refuses_an_unknown_session_without_touching_the_app(home):
 def test_focus_reports_a_locked_screen(home):
     r, _ = focus_relay(home, outcome="LOCKED")
     assert r.focus(SID) == {"ok": False, "error": "locked"}
+
+
+def test_focus_waits_for_no_send_and_switches_nothing_while_one_runs(home):
+    r, opened = focus_relay(home)
+    r.lock.acquire()  # a voice send is filling another session's prompt box
+    try:
+        started = time.time()
+        assert r.focus(SID) == {"ok": False, "error": "busy"}
+        assert opened == [] and time.time() - started < dr.FOCUS_LOCK_WAIT + 1
+    finally:
+        r.lock.release()

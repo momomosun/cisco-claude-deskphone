@@ -7,8 +7,8 @@ import phone_hub
 from test_phone_hub import get, hub_server, picture, post, softkey_urls, wait_for_push  # noqa: F401
 from test_phone_hub_desk import desk_hub  # noqa: F401
 
-STOP = {"hook_event_name": "Stop", "session_id": "s-app", "cwd": "/Users/x/parkabout",
-        "title": "parkabout app", "last_assistant_message": "测试全过了，已经推送。"}
+STOP = {"hook_event_name": "Stop", "session_id": "s-app", "cwd": "/Users/x/demo",
+        "title": "demo app", "last_assistant_message": "测试全过了，已经推送。"}
 
 
 @pytest.fixture
@@ -107,3 +107,11 @@ def test_without_the_desk_relay_nothing_comes_up(hub_server):
     time.sleep(0.1)
     assert push.urls == [] and hub.messages == []
 
+
+
+def test_a_session_talking_on_the_phone_stays_quiet(done_hub):
+    hub, _, base, push, rings = done_hub
+    hub.desk.attach("s-app")  # 300 picked this session: its hook carries no phone_call mark
+    post(base, "/hook/event", STOP)
+    time.sleep(0.1)
+    assert push.urls == [] and hub.messages == [] and rings == []

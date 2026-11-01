@@ -115,7 +115,7 @@ def test_the_door_alert_can_be_tried_from_the_mini(door_hub):
 
 def test_the_caption_says_when_the_picture_was_taken(door_hub, monkeypatch):
     hub, ha, push, chimes, base = door_hub
-    monkeypatch.setenv("TZ", "Australia/Sydney")  # where the phone is
+    monkeypatch.setenv("TZ", "Australia/Sydney")  # any fixed zone
     time.tzset()
     page = get(base + "/phone/door?cam=0")[2]
     get(picture(page))

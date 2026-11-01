@@ -97,7 +97,8 @@ REQUEST_FOOTER = "Allow 批准 / Deny 拒绝"
 # a request's pages come already expired, so an answered question never comes back on Exit.
 OFF_HISTORY = ("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
 DESK_ID = re.compile(r"local_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-GO_ERRORS = {"locked": "电脑锁屏了，没打开", "no such session": "这个会话已经关了"}
+GO_ERRORS = {"locked": "电脑锁屏了，没打开", "no such session": "这个会话已经关了",
+             "busy": "电脑正在替电话发消息，稍后再按 GO"}
 STATUS = {
     "permission": "等你批准",
     "permission_prompt": "等你批准",
@@ -418,7 +419,8 @@ class Hub:
         replacing a notice of that session not yet seen. An approval on screen is not covered: the
         panel shows the notice once nothing waits."""
         sid = str(payload.get("session_id") or "")
-        if not self.desk or not sid or payload.get("on_screen") is True or payload.get("phone_call") is True:
+        if (not self.desk or not sid or payload.get("on_screen") is True or payload.get("phone_call") is True
+                or self.desk.in_call(sid)):  # 300 is talking to it: the call hears the answer
             return None
         title = " ".join(str(payload.get("title") or "").split())
         title = title or os.path.basename(str(payload.get("cwd") or "").rstrip("/")) or "?"

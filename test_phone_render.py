@@ -27,7 +27,7 @@ def test_the_list_window_keeps_the_cursor_in_view():
 
 def test_picture_pages_lead_their_title_with_the_claude_icon():
     for png in (phone_render.render_screen("Claude Code | 在座位", "还没有会话活动。", "待批准 0"),
-                phone_render.render_list("桌面会话", ["电话", "parkabout app"], 0, "footer")):
+                phone_render.render_list("桌面会话", ["电话", "demo app"], 0, "footer")):
         img = Image.open(io.BytesIO(png)).convert("RGB")
         assert orange(img.getpixel((phone_render.MARGIN + 9, phone_render.MARGIN + 1 + 9)))
 

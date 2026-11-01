@@ -6,7 +6,7 @@ import pytest
 import desk_gateway as dg
 
 PHONE = {"id": "local_phone", "session_id": "s-phone", "title": "电话", "status": "idle"}
-APP = {"id": "local_app", "session_id": "s-app", "title": "parkabout app", "status": "busy"}
+APP = {"id": "local_app", "session_id": "s-app", "title": "demo app", "status": "busy"}
 
 
 class FakeRelay:
@@ -113,3 +113,11 @@ def test_cursor_stays_inside_the_list_the_phone_shows():
     relay.sessions = [PHONE]
     gw.refresh()  # the list shrank
     assert gw.cursor == 0 and gw.at_cursor() == PHONE
+
+
+def test_go_waits_for_the_relay_longer_than_the_relay_may_take():
+    import desk_relay
+    gw, relay = gateway()
+    gw.focus("s-app")
+    assert relay.calls[-1][2:4] == ("/focus", {"session_id": "s-app"})
+    assert relay.calls[-1][4] > desk_relay.FOCUS_LOCK_WAIT + desk_relay.FOCUS_TIMEOUT

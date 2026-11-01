@@ -6,8 +6,12 @@ browse and talk to desktop sessions, dial 300 to talk to Claude by voice, and se
 
 **This is one home setup published as-is, not a product.** It assumes macOS hosts (a Mac Mini running
 FreeSWITCH, TFTP and the hub; a Mac with the Claude desktop app), a 7970G on Cisco's SIP firmware, and a
-Chinese UI. Addresses, MACs and names below are examples (192.168.1.x, `SEP001122334455`, "Sam"); change
-them in `templates/`, the plists and `render.py`. Passwords and keys live in an untracked `secrets.env`
+Chinese UI. Addresses, MACs, names, paths and the time zone are examples (192.168.1.x, `SEP001122334455`,
+"Sam", `/Users/you`, Australia); before deploying, change them in `templates/` (phone and FreeSWITCH
+configs), `render.py`, the `com.example.*.plist` files, `claude_hooks/phone_call_settings.json` (absolute hook
+path), `claude_hooks/phone_hook.py`, `phone_hub.py` (`BASE_URL`, `HOOK_NET`), `desk_gateway.py` (`RELAY_URL`),
+`desk_relay.py` (`CLIENTS`), `tftpd.py`, `ha_door.py`, `phone_notify.py`, `phone_screen.py` and `sam/`
+(`grep -rn 192.168.1. .` finds the addresses). Passwords and keys live in an untracked `secrets.env`
 (see `render.py`). **Cisco firmware is not included**: you need your own copy of the SIP 9.2(1) load.
 The orange asterisk is drawn for this repo; Claude is a trademark of Anthropic, and this project is not
 affiliated with Anthropic or Cisco.
@@ -28,7 +32,7 @@ Home provisioning for a Cisco CP-7970G (and later 7962G) on SIP, to pair with Ho
   (Cisco SIP 9.2(1) from firewall.cx, zip sha256 3fd6de88…81293cb, kept in `downloads/`).
 - Router (iStoreOS 192.168.1.1): DHCP hosts `cisco7970` (00:11:22:33:44:55 → .101) and `ciscosam`
   (00:AA:BB:CC:DD:EE → .102) tagged `ciscophone`, option 150 → 192.168.1.10. Backups
-  `/etc/config/dhcp.bak-20261027-cisco`, `/etc/config/dhcp.bak-20261029-sam`. tftpd answers only the
+  `/etc/config/dhcp.bak-<date>-<label>`. tftpd answers only the
   addresses in `TFTP_ALLOWED_NET` (comma-separated, set in `com.example.cisco-tftpd.plist`): add a new phone there.
 - `tftpboot/SEP00AABBCCDDEE.cnf.xml` — Sam's 7970 (ext 102). It came with SCCP 9.3(1)SR3 (seen in its CDP);
   `loadInformation` SIP70.9-2-1S makes it flash itself to the same SIP load as 101. No Claude console on it.
@@ -234,7 +238,8 @@ Ring tones still come from our TFTP (102 is on its allow-list).
   It rings once in AWAY mode and comes up silently in DESK mode; it holds the panel like a warning until OK or
   GO (an hour at most), a newer finish of the same session replaces it, and it waits behind an approval on
   screen. Not for the session mo is looking at on the computer (the hook's `shown_here` check sends
-  `on_screen`) nor for a phone call. **GO** asks the relay (`/focus`) to open that session's `claude://` link
+  `on_screen`) nor for a phone call (marked `phone_call`, or a desk session 300 is talking to). GO waits at
+  most 2 s behind a voice send and otherwise says it is busy: opening a link switches the main window. **GO** asks the relay (`/focus`) to open that session's `claude://` link
   (`desk_focus.js`), which raises the desktop app and shows it, then the phone goes back to the panel. With the
   Studio locked nothing is opened and the notice comes back saying 「电脑锁屏了，没打开」 (a text page pushed to
   the phone does not show, so the note goes in the picture); press GO again once unlocked. Only a hub with the

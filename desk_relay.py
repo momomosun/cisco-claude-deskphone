@@ -50,6 +50,7 @@ APP_SESSIONS = os.path.expanduser("~/Library/Application Support/Claude/claude-c
 AX_SCRIPT = os.path.join(HERE, "desk_ax.js")
 FOCUS_SCRIPT = os.path.join(HERE, "desk_focus.js")
 FOCUS_TIMEOUT = 10
+FOCUS_LOCK_WAIT = 2  # GO waits this long behind a send, then says busy rather than switch windows mid-send
 MAX_BODY = 64 * 1024
 MAX_TEXT = 2000
 VIEW_TURNS = 6
@@ -293,7 +294,12 @@ class Relay:
         entry = session_id and next((s for s in self.sessions() if s["session_id"] == session_id), None)
         if not entry:
             return {"ok": False, "error": "no such session"}
-        outcome = self.focus_run(entry["id"])
+        if not self.lock.acquire(timeout=FOCUS_LOCK_WAIT):  # opening a link switches the main window
+            return {"ok": False, "error": "busy"}
+        try:
+            outcome = self.focus_run(entry["id"])
+        finally:
+            self.lock.release()
         log(f"focus {entry['title']!r}: {outcome}")
         if outcome == "OPENED":
             return {"ok": True, "error": ""}
