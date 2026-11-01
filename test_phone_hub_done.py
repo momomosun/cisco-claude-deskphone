@@ -157,3 +157,44 @@ def test_done_after_go_puts_the_usual_footer_back_on_the_next_question(done_hub)
         req.closed = True
     req.done.set()
     t.join(5)
+
+
+# --- GO on an approval: the same, Allow/Deny still answer it --------------------------------------
+from test_phone_hub import ask_in_background, permission  # noqa: E402
+
+
+@pytest.mark.parametrize("answer, note", [({"ok": True, "error": ""}, "已在电脑上打开"),
+                                          ({"ok": False, "error": "no such session"}, "这个会话已经关了")])
+def test_go_on_an_approval_opens_its_session_and_allow_still_answers(done_hub, answer, note):
+    hub, relay, base, push, _ = done_hub
+    relay.focus_answer = answer
+    t, result = ask_in_background(base, permission())
+    page = get(wait_for_push(push))[2]
+    assert list(softkey_urls(page)) == ["Allow", "Deny", "GO", "Exit"]
+    page = get(softkey_urls(page)["GO"])[2]
+    assert relay.focused == [{"session_id": "s1"}]
+    assert list(softkey_urls(page)) == ["Allow", "Deny", "GO", "Exit"]
+    req = next(iter(hub.pending.values()))
+    assert req.note == note and req.decision is None
+    assert get(picture(page))[0] == 200
+    assert b"Allowed" in get(softkey_urls(page)["Allow"])[2]
+    t.join(5)
+    assert result["body"]["decision"] == "allow"
+
+
+def close_all(hub):
+    for req in list(hub.pending.values()):
+        with hub.lock:
+            req.closed = True
+        req.done.set()
+
+
+def test_each_load_of_a_request_page_names_a_new_picture(done_hub):
+    hub, relay, base, push, _ = done_hub
+    for start in (lambda: ask_in_background(base, permission()), lambda: ask_question(base)):
+        push.urls.clear()
+        t = start()[0]
+        url = wait_for_push(push)
+        assert picture(get(url)[2]) != picture(get(url)[2])  # within a second too: GO's note is never a cached picture
+        close_all(hub)
+        t.join(5)

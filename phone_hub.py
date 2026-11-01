@@ -1108,11 +1108,14 @@ def make_handler(hub, hook_key, push_auth, shot=None):
                                   headers=[OFF_HISTORY])
             if req.questions is not None:
                 return self._question_page(req, route, token)
+            if len(route) == 2 and route[1] == "go" and hub.desk:  # GO: the approval stays up
+                self._go(req)
+                route = [rid]
             if route[0].endswith(".png"):
                 with hub.lock:
                     project = hub.sessions.get(req.session, {}).get("project", "?")
                 png = phone_render.render_screen(f"需要批准 | {project}", f"{req.tool_name}\n{req.text}",
-                                                 REQUEST_FOOTER, accent=True, arrows=True)
+                                                 req.note or REQUEST_FOOTER, accent=True, arrows=True)
                 hub.ring_soon(req)
                 return self._send(200, png, "image/png")
             if len(route) == 2 and route[1] in ("allow", "deny"):
@@ -1124,24 +1127,28 @@ def make_handler(hub, hook_key, push_auth, shot=None):
                 return self._send(200, text_page("Claude Code", text), headers=[OFF_HISTORY])
             q = f"?t={urllib.parse.quote(token)}"
             hub.screen = ("req", rid, token)  # PgUp/PgDn, pressed by mistake, leave it on screen
-            return self._send(200, image_page("Claude Code: approve?", f"{BASE_URL}/phone/req/{rid}.png{q}", [
-                ("Allow", f"{BASE_URL}/phone/req/{rid}/allow{q}"),
-                ("Deny", f"{BASE_URL}/phone/req/{rid}/deny{q}"),
-                ("Exit", "SoftKey:Exit")], wide=True), headers=[("Refresh", f"10; url={BASE_URL}/phone/panel"), OFF_HISTORY])
+            keys = [("Allow", f"{BASE_URL}/phone/req/{rid}/allow{q}"), ("Deny", f"{BASE_URL}/phone/req/{rid}/deny{q}")]
+            if hub.desk:
+                keys.append(("GO", f"{BASE_URL}/phone/req/{rid}/go{q}"))
+            return self._send(200, image_page("Claude Code: approve?", f"{BASE_URL}/phone/req/{rid}.png{q}&n={secrets.token_hex(4)}",
+                                              [*keys, ("Exit", "SoftKey:Exit")], wide=True), headers=[("Refresh", f"10; url={BASE_URL}/phone/panel"), OFF_HISTORY])
+
+        def _go(self, req):
+            """GO on an approval or a question: open its session on the Studio; req.note says how it went."""
+            try:
+                result = hub.desk.focus(req.session)
+            except Exception as exc:
+                log(f"desk focus: {exc}")
+                result = {"ok": False, "error": "电脑没回应"}
+            error = str(result.get("error") or "")
+            req.note = "已在电脑上打开" if result.get("ok") else GO_ERRORS.get(error, f"没打开：{error[:40]}")
 
         def _question_page(self, req, route, token):
             """An AskUserQuestion, one question at a time: touch an option or press its number;
             where several may be chosen, toggle them and press Done. GO opens the session on the
             computer (as for a finished session) and leaves the question up."""
             if len(route) == 2 and route[1] == "go" and hub.desk:
-                try:
-                    result = hub.desk.focus(req.session)
-                except Exception as exc:
-                    log(f"desk focus: {exc}")
-                    result = {"ok": False, "error": "电脑没回应"}
-                error = str(result.get("error") or "")
-                req.note = ("已在电脑上打开" if result.get("ok")
-                            else GO_ERRORS.get(error, f"没打开：{error[:40]}"))
+                self._go(req)
                 route = [req.id]
             elif len(route) == 3 and route[1] == "pick" and route[2].isdigit():
                 req.note = ""  # answering here: the footer says how again
@@ -1173,7 +1180,7 @@ def make_handler(hub, hook_key, push_auth, shot=None):
                 keys.append(("GO", f"{base}/go{tq}"))
             keys.append(("Done", f"{base}/done{tq}") if q["several"] else ("Exit", "SoftKey:Exit"))
             hub.screen = ("req", req.id, token)  # as for an approval
-            return self._send(200, touch_page("Claude Code: choose", f"{base}.png{tq}&n={time.time():.0f}",
+            return self._send(200, touch_page("Claude Code: choose", f"{base}.png{tq}&n={secrets.token_hex(4)}",
                                               areas, keys, wide=True),
                               headers=[("Refresh", f"10; url={BASE_URL}/phone/panel"), OFF_HISTORY])
 
