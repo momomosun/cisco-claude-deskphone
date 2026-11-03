@@ -19,3 +19,4 @@ voice_agent.log
 desk_relay.log
 ha.token
 dist/
+cell_bridge.log

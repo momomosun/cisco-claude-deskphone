@@ -3,7 +3,8 @@
 The hub reaches the relay with signed requests (hubauth) and keeps three bits of state:
   - the cursor of the session list on the phone screen;
   - the selection: the session last opened on the phone. A call to 300 talks to it for
-    SELECTION_TTL seconds; otherwise calls go to the desktop session titled PHONE_SESSION;
+    SELECTION_TTL seconds; otherwise to the session the desktop app shows (its main window's
+    first), and when it shows none the relay can name, to the session titled PHONE_SESSION;
   - the sessions a call is talking to, from the moment the call picks its target until it ends:
     their permission requests wait for the phone whatever the hub's mode, and voice_agent can
     answer them from the keypad.
@@ -20,6 +21,7 @@ SELECTION_TTL = 600
 ATTACH_TTL = 900
 RELAY_TIMEOUT = 8
 TARGET_TIMEOUT = 3  # each read of the relay's answer; voice_agent waits 5 s for the target
+SHOWN_TIMEOUT = 2  # what the desktop shows, after the session list: inside TARGET_DEADLINE most times
 TARGET_DEADLINE = 4  # the whole lookup: a target found later is not held, the call has moved on
 FOCUS_TIMEOUT = 15  # the relay may wait 2 s behind a send, then give the link 10 s
 SEND_TIMEOUT = 60  # opening the session and finding its prompt box takes a few seconds
@@ -95,7 +97,21 @@ class DeskGateway:
             found = next((s for s in sessions if s.get("id") == selected[0].get("id")), None)
             if found:
                 return found
+        for title in self.shown():
+            named = [s for s in sessions if s.get("title") == title]
+            if len(named) == 1:  # a title two sessions share names neither
+                return named[0]
         return next((s for s in sessions if s.get("title") == PHONE_SESSION), None)
+
+    def shown(self):
+        """Titles of the sessions the desktop app shows, main window first; none when the relay
+        cannot tell (screen locked, app closed, or a relay without /shown)."""
+        try:
+            titles = self._call("/shown", {}, timeout=SHOWN_TIMEOUT)["titles"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(time.strftime("%Y-%m-%d %H:%M:%S"), f"desk shown: {exc}", flush=True)
+            return []
+        return [t for t in titles if isinstance(t, str)] if isinstance(titles, list) else []
 
     def move(self, delta):
         with self.lock:

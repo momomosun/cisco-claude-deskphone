@@ -168,6 +168,28 @@
           <action application="echo"/>
         </condition>
       </extension>
+      <!-- 103 is the iPhone bridge (cell_bridge.py on the Mini): reached only through cell_out -->
+      <extension name="no_direct_103">
+        <condition field="destination_number" expression="^103$">
+          <action application="hangup" data="CALL_REJECTED"/>
+        </condition>
+      </extension>
+      <!-- A phone number from the 7970: out through the iPhone (Continuity "Calls from iPhone" on the
+           Mini). The number travels as the caller name "cell-<number>" (no colon: an unquoted display
+           name cannot hold one), which only FreeSWITCH can set towards 103.
+           000/112 are not taken: emergency calls belong on the mobile itself. -->
+      <extension name="cell_out">
+        <condition field="destination_number" expression="^(0\d{9}|0011\d{6,15}|13\d{4}|1[38]00\d{6}|\+\d{8,15})$"/>
+        <condition field="${cell_caller}" expression="^true$">
+          <!-- answered here first: when 103 answered within milliseconds of ringing the 7970 never sent
+               its ACK and the call dropped after 32 s (11-02) -->
+          <action application="answer"/>
+          <action application="set" data="effective_caller_id_name=cell-${destination_number}"/>
+          <action application="set" data="call_timeout=60"/>
+          <action application="set" data="hangup_after_bridge=true"/>
+          <action application="bridge" data="{outbound_redirect_fatal=true}user/103@$${pbx_ip}"/>
+        </condition>
+      </extension>
       <!-- 1xx: ring another phone on this PBX; 200: Home Assistant -->
       <extension name="local_extension">
         <condition field="destination_number" expression="^(1\d\d|200)$">
@@ -211,6 +233,8 @@
                 <variable name="effective_caller_id_number" value="101"/>
                 <!-- may dial 300 (Claude); set from this entry once the caller has authenticated -->
                 <variable name="claude_caller" value="true"/>
+                <!-- may dial out through the iPhone (cell_out) -->
+                <variable name="cell_caller" value="true"/>
               </variables>
             </user>
             <!-- 200: Home Assistant (hass-sip on the Air), registers on the "ha" profile, port 5070 -->
@@ -222,6 +246,17 @@
               <variables>
                 <variable name="effective_caller_id_name" value="Home Assistant"/>
                 <variable name="effective_caller_id_number" value="200"/>
+              </variables>
+            </user>
+            <!-- 103: baresip on the Mini, bridging the iPhone's calls (Continuity "Calls from iPhone") -->
+            <user id="103">
+              <params>
+                <param name="password" value="{{PHONE_103_PASSWORD}}"/>
+                <param name="allow-empty-password" value="false"/>
+              </params>
+              <variables>
+                <variable name="effective_caller_id_name" value="iPhone"/>
+                <variable name="effective_caller_id_number" value="103"/>
               </variables>
             </user>
             <!-- 102: Sam's Cisco 7970 (no claude_caller: cannot dial 300) -->

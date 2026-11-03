@@ -20,6 +20,9 @@ desktop app. phone-hub on the Mini calls it, signed like the hooks (hubauth), fr
              after that session finished its turn. desk_focus.js opens its claude:// link, which
              raises the desktop app and shows the session; not while the screen is locked (the link
              would switch the main window behind the lock screen)
+  /shown     titles of the sessions the desktop app shows, main window first (desk_shown.js):
+             where a call to 300 goes when no session was opened on the phone; none while the
+             screen is locked
   /reply     whether the sent text landed, what the session said since, and whether its turn
              has ended (the Stop hook summary that closes every turn)
 
@@ -49,6 +52,8 @@ PROJECTS = os.path.expanduser("~/.claude/projects")
 APP_SESSIONS = os.path.expanduser("~/Library/Application Support/Claude/claude-code-sessions")
 AX_SCRIPT = os.path.join(HERE, "desk_ax.js")
 FOCUS_SCRIPT = os.path.join(HERE, "desk_focus.js")
+SHOWN_SCRIPT = os.path.join(HERE, "desk_shown.js")
+SHOWN_TIMEOUT = 2  # the hub gives the whole answer 2 s (after the session list); reading takes about 1
 FOCUS_TIMEOUT = 10
 FOCUS_LOCK_WAIT = 2  # GO waits this long behind a send, then says busy rather than switch windows mid-send
 MAX_BODY = 64 * 1024
@@ -223,6 +228,16 @@ def run_focus(host_id):
     return out.stdout.strip() or out.stderr.strip()[-200:] or "no output"
 
 
+def run_shown():
+    """desk_shown.js prints one title per line; nothing when it fails or takes too long."""
+    try:
+        out = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", SHOWN_SCRIPT],
+                             capture_output=True, text=True, timeout=SHOWN_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return ""
+    return out.stdout if out.returncode == 0 else ""
+
+
 def settle(path, offset, text, outcome):
     """After an uncertain send: SENT if the words show up in the transcript within LAND_WAIT."""
     deadline = time.time() + LAND_WAIT
@@ -235,9 +250,10 @@ def settle(path, offset, text, outcome):
 
 
 class Relay:
-    def __init__(self, registry=REGISTRY, projects=PROJECTS, ax=run_ax, app_sessions=APP_SESSIONS, focus=run_focus):
+    def __init__(self, registry=REGISTRY, projects=PROJECTS, ax=run_ax, app_sessions=APP_SESSIONS, focus=run_focus,
+                 shown=run_shown):
         self.registry, self.projects, self.ax, self.app_sessions = registry, projects, ax, app_sessions
-        self.focus_run = focus
+        self.focus_run, self.shown_run = focus, shown
         self.hints = {}  # session id -> element paths of its last send
         self.lock = threading.Lock()  # one send at a time: the app has one prompt box per window
 
@@ -305,6 +321,9 @@ class Relay:
             return {"ok": True, "error": ""}
         return {"ok": False, "error": "locked" if outcome == "LOCKED" else outcome}
 
+    def shown(self):
+        return {"titles": [t.strip() for t in self.shown_run().splitlines() if t.strip()]}
+
     def reply(self, host_id, offset, sent):
         entry = self.find(host_id)
         path = entry and transcript(entry["session_id"], self.projects)
@@ -326,6 +345,7 @@ def make_handler(relay, key):
         "/view": lambda p: relay.view(str(p.get("id") or "")),
         "/send": lambda p: relay.send(str(p.get("id") or ""), p.get("text")),
         "/focus": lambda p: relay.focus(str(p.get("session_id") or "")),
+        "/shown": lambda p: relay.shown(),
         "/reply": lambda p: relay.reply(str(p.get("id") or ""), p.get("offset"), p.get("sent")),
     }
 

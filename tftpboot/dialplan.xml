@@ -1,5 +1,12 @@
 <DIALTEMPLATE>
   <!-- Send immediately when the number is complete instead of waiting for the inter-digit timeout -->
+  <!-- 13/1300/1800 numbers and anything from 0 go out through the iPhone (103): 10 digits from 0
+       are complete; 13.. lengths vary, so those wait for the timeout. Before 1.., which would cut them.
+       0011 (international) first: its numbers run past 10 digits, and 0......... would send them cut. -->
+  <TEMPLATE MATCH="0011*" Timeout="3" User="Phone"/>
+  <TEMPLATE MATCH="0........." Timeout="0" User="Phone"/>
+  <TEMPLATE MATCH="13*" Timeout="3" User="Phone"/>
+  <TEMPLATE MATCH="18*" Timeout="3" User="Phone"/>
   <TEMPLATE MATCH="1.." Timeout="0" User="Phone"/>
   <TEMPLATE MATCH="2.." Timeout="0" User="Phone"/>
   <TEMPLATE MATCH="3.." Timeout="0" User="Phone"/>

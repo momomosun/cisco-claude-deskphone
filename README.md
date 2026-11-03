@@ -10,7 +10,7 @@ Chinese UI. Addresses, MACs, names, paths and the time zone are examples (192.16
 "Sam", `/Users/you`, Australia); before deploying, change them in `templates/` (phone and FreeSWITCH
 configs), `render.py`, the `com.example.*.plist` files, `claude_hooks/phone_call_settings.json` (absolute hook
 path), `claude_hooks/phone_hook.py`, `phone_hub.py` (`BASE_URL`, `HOOK_NET`), `desk_gateway.py` (`RELAY_URL`),
-`desk_relay.py` (`CLIENTS`), `tftpd.py`, `ha_door.py`, `phone_notify.py`, `phone_screen.py` and `sam/`
+`desk_relay.py` (`CLIENTS`), `cell_bridge.py` (`PBX_HOST`), `tftpd.py`, `ha_door.py`, `phone_notify.py`, `phone_screen.py` and `sam/`
 (`grep -rn 192.168.1. .` finds the addresses). Passwords and keys live in an untracked `secrets.env`
 (see `render.py`). **Cisco firmware is not included**: you need your own copy of the SIP 9.2(1) load.
 The orange asterisk is drawn for this repo; Claude is a trademark of Anthropic, and this project is not
@@ -219,13 +219,16 @@ Ring tones still come from our TFTP (102 is on its allow-list).
   phone and keep its globes. Open shows the session's last few turns a page at a time, from the last thing said
   to it; Up/Down (softkeys, or touching the upper/lower half) page back and on. Talk (= dial 300) then talks to
   that session for 10 minutes.
-  Otherwise 300 talks to the session titled **电话** (keep it open in its own window); with no such session or
-  no relay, the Mini's Claude answers as before.
+  Otherwise 300 talks to the session the desktop app shows (its main window's first; `desk_shown.js` reads the
+  "<title> - Claude Code" web areas, `/shown` on the relay), and the voice says which; with the Studio locked
+  or no shown title naming exactly one running session, to the session titled **电话**; with no such session
+  or no relay, the Mini's Claude answers as before.
 - `desk_relay.py` on the Studio (launchd `com.example.desk-relay`, port 8091, log `desk_relay.log`) answers only the
   Mini and localhost, signed like the hooks (`hubauth.py`, same key). It reads Claude Code's own files
   (`~/.claude/sessions/<pid>.json`, transcripts under `~/.claude/projects`) and sends with `desk_ax.js`: through
   the accessibility API it fills the session's prompt box and presses Send (no keystrokes: Parallels steals the
-  focus). The header button "<title>, rename session" proves which session a window shows; busy sessions and
+  focus). The header button "<title>, rename session" ("<title>，重命名会话" in the Chinese app; `LABELS` in
+  `desk_ax.js` has both, as for Prompt/提示词 and Send/发送) proves which session a window shows; busy sessions and
   unsent drafts are refused; the session's `claude://` link is opened only when no window shows it, since that
   also switches the main window. The words arrive prefixed 「（电话语音）」; hanging up leaves the session working.
   Answers are signed for the request they answer (`X-Hub-Answer`), so the hub cannot be handed another session.
@@ -255,3 +258,32 @@ Ring tones still come from our TFTP (102 is on its allow-list).
   `/usr/bin/python3` would extend that to every launchd job run by it. After granting, restart the service (the
   running process keeps the earlier refusal); after a rebuild, grant again.
   Restart: `launchctl kickstart -k gui/$(id -u)/com.example.desk-relay`.
+
+## Mobile calls from the desk phone (cell bridge)
+
+A number dialled on 101 (`0` + 9 digits, `0011…`, `13xxxx`, `1300/1800…`, `+…`) goes out through the iPhone,
+by macOS "Calls from iPhone" on the Mini; the desk phone's handset carries both directions.
+
+- FreeSWITCH's `cell_out` (only for 101: `cell_caller=true`) answers the 7970 first (when 103 answered within
+  milliseconds the 7970 lost its ACK and the call dropped at 32 s), then bridges to extension 103 with the caller
+  name `cell-<number>`. Nobody rings 103 directly (`no_direct_103`). The phone's dial template sends 10 digits
+  from `0` at once, waits 3 s on `0011…`, `13…` and `18…`.
+- 103 is baresip on the Mini (`~/.baresip-cell`: `config`, `accounts` with 103's password, not in git;
+  `ctrl_tcp` on 127.0.0.1:4444, `answermode=auto`). `cell_bridge.py` watches its events: `open tel://<number>`
+  (after waking the display, which sleeps and locks even under `caffeinate -d`), then presses the 呼叫 button
+  of the banner macOS asks with (`cell_confirm.js`, accessibility), closing any banner left from before first.
+  The desk phone hanging up presses the call bar's 结束; callservicesd's "All calls ended" hangs up 103.
+- Sound: two one-way builds of BlackHole (`~/src/BlackHole/build_call.sh` on the Mini): the call's output
+  `CallSpk 2ch` is heard on `CallSpk 2ch Tap`, and what baresip plays into `CallMic 2ch Feed` is the call's
+  microphone `CallMic 2ch`. They are the Mac's default output and input (`cell_setaudio.swift`); FaceTime takes
+  2-channel devices only, a single loopback device hears itself, and an aggregate of the two is split again by
+  the call's voice processing. Its `Phone`/FaceTime audio menus stay on 使用系统设置.
+- Runs as `~/Applications/CellBridge.app` (an applet holding Microphone and Accessibility; rebuilding it loses
+  the grants) from launchd `com.example.cell-bridge` (`cell_bridge.sh`); log `cell_bridge.log` (0600, numbers
+  masked). The Mini must be logged in (auto-login) with no screen-lock password: a locked screen hides the banner.
+- **Not possible**: keys pressed on the desk phone (menus "press 1") and ending the iPhone's side of the call.
+  The call bar's keypad and end button can only be clicked on screen, the bar leaves the accessibility tree
+  soon after the call connects, TelephonyUtilities refuses programs without Apple's `access-calls`
+  entitlement, and 结束 on the Mac only takes the Mac off the call. Press keys and hang up on the iPhone.
+- A device on the LAN could send 103 a forged `cell-<number>` INVITE (baresip listens on 192.168.1.10:5080):
+  not closed yet.

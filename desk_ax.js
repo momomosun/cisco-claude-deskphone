@@ -4,8 +4,9 @@
 // having taken its text back out of the box) or "UNKNOWN: <error>" (pressing Send failed half
 // way), and after SENT the paths it used, which desk_relay.py passes back as HINTS next time.
 //
-// The session's header has a button described "<title>, rename session" only where the session
-// is shown, so finding it proves where the text goes; it is checked again just before Send.
+// The session's header has a button described "<title>, rename session" ("<title>，重命名会话" in the
+// Chinese app, 11-02; LABELS has both) only where the session is shown, so finding it proves where
+// the text goes; it is checked again just before Send.
 // The session is looked for in every window first (it may sit in its own pop-out window): its
 // claude:// link (HOST_ID) is opened only when it is nowhere on screen, because opening the link
 // also switches the main window. A locked screen hides every window from the accessibility API,
@@ -18,6 +19,9 @@
 // are checked first and nothing is scanned at all when they still fit.
 
 ObjC.import("CoreGraphics");
+
+// What the app calls its controls, English and Chinese.
+const LABELS = { rename: [", rename session", "，重命名会话"], prompt: ["Prompt", "提示词"], send: ["Send", "发送"] };
 
 function attr(el, name) {  // a failed read gives "", which matches no description we look for
   try { const v = el.attributes.byName(name).value(); return v == null ? "" : String(v); } catch (e) { return ""; }
@@ -93,8 +97,8 @@ function run(argv) {
   try { hints = JSON.parse(hintText || "{}") || {}; } catch (e) {}
   const proc = Application("System Events").processes.byName("Claude");
   try { proc.attributes.byName("AXManualAccessibility").value = true; } catch (e) {}  // Electron builds its tree
-  const anchorText = title + ", rename session";
-  const isAnchor = el => attr(el, "AXDescription") === anchorText;
+  const anchorTexts = LABELS.rename.map(suffix => title + suffix);
+  const isAnchor = el => anchorTexts.includes(attr(el, "AXDescription"));
 
   let anchor = hinted(hints.anchor, isAnchor), all = null;
   const scan = () => {
@@ -114,7 +118,7 @@ function run(argv) {
   }
   if (!anchor) return "ABORT: the window is not showing that session";
 
-  const isBox = el => attr(el, "AXDescription") === "Prompt";
+  const isBox = el => LABELS.prompt.includes(attr(el, "AXDescription"));
   let box = hints.anchor && shared(hints.anchor, anchor.path) === anchor.path.length ? hinted(hints.box, isBox) : null;
   if (!box) {
     const pane = all || contents(build(anchor.path.slice(0, 2)));
@@ -131,7 +135,7 @@ function run(argv) {
   try {
     box.el.attributes.byName("AXValue").value = text;
     // the Send button appears once the box holds text: the remembered one, or look near the box
-    const isSend = el => attr(el, "AXDescription") === "Send";
+    const isSend = el => LABELS.send.includes(attr(el, "AXDescription"));
     const near = x => kind(x) === "buttons" && shared(x.path, box.path) >= box.path.length - 6;
     let send = null;
     for (const start = Date.now(); !send && Date.now() - start < SEND_WAIT * 1000;) {

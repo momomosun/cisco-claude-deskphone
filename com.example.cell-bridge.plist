@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- On the Mac Mini: the iPhone's calls on the desk phone (cell_bridge.sh, cell_bridge.py). Runs
+       CellBridge.app, which holds Microphone and Accessibility (Privacy & Security, "设备控制和数据访问"
+       on macOS 27) and Automation of System Events. -->
+  <key>Label</key><string>com.example.cell-bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/Applications/CellBridge.app/Contents/MacOS/applet</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/you/cisco-phone</string>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/you/cisco-phone/cell_bridge.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/cisco-phone/cell_bridge.log</string>
+</dict>
+</plist>

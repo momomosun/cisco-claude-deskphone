@@ -344,3 +344,28 @@ def test_focus_waits_for_no_send_and_switches_nothing_while_one_runs(home):
         assert opened == [] and time.time() - started < dr.FOCUS_LOCK_WAIT + 1
     finally:
         r.lock.release()
+
+
+# --- which sessions the desktop app shows (a call to 300 without a phone selection) --------------
+def test_shown_lists_the_titles_the_script_reads_main_window_first(home):
+    reg, projects, _ = home
+    r = dr.Relay(registry=reg, projects=projects, shown=lambda: "Cisco CP-7970G\n电话\n")
+    assert r.shown() == {"titles": ["Cisco CP-7970G", "电话"]}
+
+
+def test_shown_is_empty_when_the_script_sees_nothing(home):
+    reg, projects, _ = home
+    r = dr.Relay(registry=reg, projects=projects, shown=lambda: "")
+    assert r.shown() == {"titles": []}
+
+
+def test_run_shown_gives_nothing_for_a_script_that_fails_or_hangs(monkeypatch):
+    class Done:
+        returncode, stdout, stderr = 1, "", "execution error"
+    monkeypatch.setattr(dr.subprocess, "run", lambda *a, **kw: Done())
+    assert dr.run_shown() == ""
+
+    def hang(*a, **kw):
+        raise dr.subprocess.TimeoutExpired("osascript", dr.SHOWN_TIMEOUT)
+    monkeypatch.setattr(dr.subprocess, "run", hang)
+    assert dr.run_shown() == ""

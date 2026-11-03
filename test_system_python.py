@@ -10,7 +10,7 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_PYTHON = "/usr/bin/python3"
 RUN_BY_SYSTEM_PYTHON = ["phone_hub.py", "phone_render.py", "desk_gateway.py", "ha_door.py", "hubauth.py", "render.py",
-                        "tftpd.py", "desk_relay.py", "phone_screen.py", "make_ring.py",
+                        "tftpd.py", "desk_relay.py", "phone_screen.py", "make_ring.py", "cell_bridge.py",
                         os.path.join("claude_hooks", "phone_hook.py")]
 
 

@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import stat
 import tempfile
@@ -225,3 +226,69 @@ def test_each_phone_screen_stays_on_from_0930_to_2230(base, phone):
     text = {t: vendor.getElementsByTagName(t)[0].firstChild.data
             for t in ("displayOnTime", "displayOnDuration", "displayIdleTimeout")}
     assert text == {"displayOnTime": "09:30", "displayOnDuration": "13:00", "displayIdleTimeout": "01:00"}
+
+
+def test_phone_sends_mobile_numbers_at_once_and_waits_on_13_and_18():
+    doc = xml.dom.minidom.parse(os.path.join(HERE, "tftpboot", "dialplan.xml"))
+    order = [(t.getAttribute("MATCH"), t.getAttribute("Timeout")) for t in doc.getElementsByTagName("TEMPLATE")]
+    matches = [m for m, _ in order]
+    assert ("0.........", "0") in order and ("13*", "3") in order and ("18*", "3") in order
+    assert matches.index("13*") < matches.index("1..") and matches.index("18*") < matches.index("1..")
+
+
+def first_template(order, digits):
+    """The phone's pick for the digits so far: the first template they fit ('.' one digit, '*' the rest)."""
+    for match, timeout in order:
+        head, star, _ = match.partition("*")
+        fits = (len(digits) >= len(head) if star else len(digits) == len(head))
+        if fits and all(m == "." or m == d for m, d in zip(head, digits)):
+            return match, timeout
+    return None
+
+
+@pytest.mark.parametrize("number", ["0011614123456", "001144207946000", "0412345678"])
+def test_no_number_is_sent_before_it_is_whole(number):
+    doc = xml.dom.minidom.parse(os.path.join(HERE, "tftpboot", "dialplan.xml"))
+    order = [(t.getAttribute("MATCH"), t.getAttribute("Timeout")) for t in doc.getElementsByTagName("TEMPLATE")]
+    for n in range(1, len(number)):  # every prefix short of the whole number waits for more digits
+        picked = first_template(order, number[:n])
+        assert not (picked and picked[1] == "0" and "*" not in picked[0]), (number[:n], picked)
+
+
+def extension(pbx, name):
+    return next(e for e in pbx.getElementsByTagName("extension") if e.getAttribute("name") == name)
+
+
+def conditions(ext):
+    return [(c.getAttribute("field"), c.getAttribute("expression")) for c in ext.getElementsByTagName("condition")]
+
+
+@pytest.mark.parametrize("number, goes", [("0412345678", True), ("0299998888", True), ("131008", True),
+                                          ("1300123456", True), ("1800123456", True), ("+61412345678", True),
+                                          ("001186123456789", True), ("000", False), ("112", False),
+                                          ("101", False), ("103", False), ("04123", False)])
+def test_only_101_dials_out_through_the_iphone_and_only_real_numbers(base, number, goes):
+    render.main(base)
+    pbx = xml.dom.minidom.parseString(read(base, PBX))
+    cell = extension(pbx, "cell_out")
+    (dest_field, dest), (caller_field, caller) = conditions(cell)
+    assert dest_field == "destination_number" and bool(re.match(dest, number)) == goes
+    assert (caller_field, caller) == ("${cell_caller}", "^true$")
+    marks = [v for v in pbx.getElementsByTagName("variable") if v.getAttribute("name") == "cell_caller"]
+    assert [(v.parentNode.parentNode.getAttribute("id"), v.getAttribute("value")) for v in marks] == [("101", "true")]
+    actions = [(a.getAttribute("application"), a.getAttribute("data")) for a in cell.getElementsByTagName("action")]
+    assert ("set", "effective_caller_id_name=cell-${destination_number}") in actions  # for the bridge on the Mini
+    assert ("bridge", "{outbound_redirect_fatal=true}user/103@$${pbx_ip}") in actions
+    # the 7970 lost its ACK when 103 answered within milliseconds of ringing, and FreeSWITCH dropped the call
+    # after 32 s (11-02): the desk phone's leg is answered first, as for *43
+    assert [a for a, _ in actions].index("answer") < [a for a, _ in actions].index("bridge")
+
+
+def test_nobody_rings_103_directly(base):
+    render.main(base)
+    pbx = xml.dom.minidom.parseString(read(base, PBX))
+    names = [e.getAttribute("name") for e in pbx.getElementsByTagName("extension")]
+    guard = extension(pbx, "no_direct_103")
+    assert names.index("no_direct_103") < names.index("local_extension")
+    assert conditions(guard) == [("destination_number", "^103$")]
+    assert [a.getAttribute("application") for a in guard.getElementsByTagName("action")] == ["hangup"]

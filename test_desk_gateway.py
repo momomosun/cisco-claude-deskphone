@@ -10,8 +10,8 @@ APP = {"id": "local_app", "session_id": "s-app", "title": "demo app", "status": 
 
 
 class FakeRelay:
-    def __init__(self, sessions=(PHONE, APP), send_ok=True, down=False):
-        self.sessions, self.send_ok, self.down = list(sessions), send_ok, down
+    def __init__(self, sessions=(PHONE, APP), send_ok=True, down=False, shown=()):
+        self.sessions, self.send_ok, self.down, self.shown = list(sessions), send_ok, down, shown
         self.calls = []
 
     def __call__(self, url, key, path, payload, timeout=5):
@@ -20,6 +20,10 @@ class FakeRelay:
             raise OSError("no route to host")
         if path == "/sessions":
             return {"sessions": self.sessions}
+        if path == "/shown":
+            if isinstance(self.shown, Exception):
+                raise self.shown
+            return {"titles": list(self.shown)}
         if path == "/send":
             return {"ok": self.send_ok, "error": "" if self.send_ok else "busy", "offset": 10,
                     "session_id": "s-app" if payload["id"] == "local_app" else "s-phone"}
@@ -57,6 +61,25 @@ def test_the_target_is_looked_up_afresh_by_its_id():
     gw.select(dict(APP, session_id=""))  # opened from a stale page: no transcript id
     assert gw.target() == APP and relay.calls[-1][4] == dg.TARGET_TIMEOUT < 5  # inside voice_agent's wait
     relay.sessions = [PHONE]  # the selected session closed
+    assert gw.target() == PHONE
+
+
+def test_without_a_phone_selection_a_call_goes_to_the_session_the_desktop_shows():
+    gw, relay = gateway(shown=["demo app", "电话"])  # the main window's first
+    assert gw.target() == APP and relay.calls[-1][2] == "/shown" and relay.calls[-1][4] == dg.SHOWN_TIMEOUT
+    gw.select(PHONE)  # opened on the phone: that comes first
+    assert gw.target() == PHONE
+
+
+@pytest.mark.parametrize("shown", [[], ["closed session"], OSError("timed out"), ValueError("unsigned")])
+def test_nothing_usable_shown_falls_back_to_the_phone_session(shown):
+    gw, _ = gateway(shown=shown)
+    assert gw.target() == PHONE
+
+
+def test_a_shown_title_two_sessions_share_names_neither():
+    twin = dict(APP, id="local_twin", session_id="s-twin")
+    gw, _ = gateway(sessions=[PHONE, APP, twin], shown=["demo app"])
     assert gw.target() == PHONE
 
 
